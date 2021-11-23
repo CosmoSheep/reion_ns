@@ -3,6 +3,7 @@ import lya_convertor as lya_c
 import sys
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from scipy.integrate import trapz
 
 
 """
@@ -40,7 +41,10 @@ class puma(object):
         # effective collecting area per antenna feed
         self.A_e = np.pi * (self.D_eff / 2.)**2
         # number of receivers
-        self.N_s = 256 # hence compact square array will have 256^2
+        self.N_s = 256 # hence compact square array will have 256^2, be careful the fit uses this, so
+        # it really should be 256 here
+        # speed of ligth in km/s
+        self.c_kms = 2.99979e5
 #        """ playing with this for a second it should go back to 256!!! """
         # let's choose a hex-close packing, thus
         self.a = 0.5698 # sq 0.4847
@@ -103,6 +107,17 @@ class puma(object):
         return N_s**2 / (2. * np.pi * u_max**2)
 #        return N_s**4 / (2. * np.pi) / (u_max**2)
 
+    def normalize(self, lambda_obs):
+        """
+            Compute the normalization of our number density of baselines
+        """
+        u = np.linspace(30, 60000, 1000)
+        n_sq = self.square_uni_density(u, lambda_obs, 256**2)
+        n = self.number_density(u, lambda_obs)
+        norm = trapz(2. * np.pi * u * n, u)
+        N_s = 256 * 256
+        proper = 0.5 * N_s * (N_s - 1)
+        return proper / norm
     
     def plot_density_baselines(self, z):
         """
@@ -119,7 +134,7 @@ class puma(object):
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(111)
         ax1.plot(u_array, self.number_density(u_array, lambda_obs))
-        ax1.plot(u_array, sq_array, label=r'sq. uni $N_s^2$', color='purple')
+#        ax1.plot(u_array, sq_array, label=r'sq. uni $N_s^2$', color='purple')
         ax1.plot(u_array, sq_array_d, label=r'sq. uni $N_s^4$', color='green')
         ax1.set_xlabel(r'$u$', fontsize=14)
         ax1.set_ylabel(r'$n(u)$', fontsize=14)
@@ -161,13 +176,14 @@ class puma(object):
             print('Nu obs in MHz ', nu_obs)
             print('Comoving distance in Mpc ', D_c_Mpc)
             print('Hubble in km/s/Mpc ', H_kms_Mpc)
-            print('FOV is ', self.FOV(lambda_obs))
+            print('FOV is ', self.FOV(lambda_obs) * pow(180 / np.pi, 2))
             print('kt in 1/Mpc is ', kt_Mpc)
             print('The u ', u)
             print('Integration time ', self.t_int)
             print('Number density for that kt ', self.number_density(u, lambda_obs))
             print('T system in mili Kelvins ', self.T_sys(nu_obs))
-            prefrator = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
+#            prefrator = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
+            prefrator = D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
             print('Prefactor ', prefrator)
             print('1 / den_factor ', 1. / den_factor)
             print('S_area / FOV ', f_factor)
@@ -223,7 +239,7 @@ class puma(object):
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(111)
         ax1.plot(l_array, self.n_b_phys(l_array) * 2. * np.pi * l_array)
-        ax1.plot(l_array, n_sq_phys, label=r'Sq. uni. approx.  $N_s^2$')
+#        ax1.plot(l_array, n_sq_phys, label=r'Sq. uni. approx.  $N_s^2$')
         ax1.plot(l_array, n_sq_phys_d, label=r'Sq. uni. approx.  $N_s^4$')
 #        ax1.plot(l_array, sq_phys_sk, label=r'Sq. uni. approx. SKA $N_s^2$')
 #        ax1.plot(l_array, sq_phys_sk_d, label=r'Sq. uni. approx. SKA $N_s^4$')
@@ -237,3 +253,23 @@ class puma(object):
 #        ax1.set_xscale('log')
         plt.show()
         return 1
+
+    def survey_vol_Mpc(self, z):
+        """
+            Volume of the survey, for auto it is the 21cm, for cross it would be both surveys have the same volume.
+            
+            Units of Mpc^3
+        """
+        # frequency
+        nu_MHz = 1420.
+        # comoving distance
+        Dc_Mpc = self.lya_c.comoving_dist(z)
+        # comoving distance associated with bandwith of the instrument
+        Delta_D_Mpc = self.c_kms / (self.lya_c.h * 100.) / np.sqrt(self.lya_c.Omega_m) / nu_MHz * np.sqrt(1. + z) * self.band_MHz
+        # note bandwidth needs to be in MHz just like the 21cm frequency
+        lambda_obs = 0.21 * (1. + z)
+        """ Sorry Heyang I will clean up all the lambda_emit and nu_emit later haha"""
+        # for area of a single dish we use the eff area
+        # ratio to account for the angular resolution of the telescope in Fourier space
+        ratio = lambda_obs * lambda_obs / self.A_e
+        return Dc_Mpc**2 * Delta_D_Mpc * ratio

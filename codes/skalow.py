@@ -3,6 +3,7 @@ import lya_convertor as lya_c
 import sys
 import matplotlib.pyplot as plt
 from scipy.interpolate import interp1d
+from scipy.integrate import quad
 from scipy.integrate import simps
 from scipy.integrate import trapz
 
@@ -21,7 +22,7 @@ class skalow(object):
         # grabbing total integration time in h and transform to s
         self.t_int = t_int * 3600.
         # coverage of sky
-        self.f_sky = 0.6 # max is 1
+        self.f_sky = 3. / 4. # max is 1
         # physical dish area
         self.D_phys = 35.0 # meters
         # square root of effective dish area
@@ -29,11 +30,13 @@ class skalow(object):
         # total survey area
         self.S_area = 4.0 * np.pi * self.f_sky # sq. radians
         # number of receivers
-        self.N_s = 911
+        self.N_s = 512 * 256 # the 256 comes from the SKA1-low info about # of antenna per station
         # the data that we grabbed manually
         self.U_over_nu, self.n_U_x_nu_nu = np.loadtxt('density_baseline.csv', unpack=True)
         # for system noise we need the comoving distance
         self.lya_c = lya_c.lya_convert()
+        # speed of ligth in km/s
+        self.c_kms = 2.99979e5
         # for bug catching
         self.verbose = True
         
@@ -60,24 +63,14 @@ class skalow(object):
         """
         return pow((lambda_obs / self.D_eff), 2.)
         
-    def square_uni_density(self, u, lambda_obs, N_s):
-        """
-            Returns a square close package number density of baselines in the uv plane. We use the usual approx
-        """
-#        D_max = self.N_s * self.D_phys * np.sqrt(2) # in meters
-        # or
-        D_max = 60000 # in meters
-        u_max = D_max / lambda_obs
-#        return self.N_s**2 / (2. * np.pi * pow(u_max, 2.))
-        return N_s**2 / (2. * np.pi * pow(u_max, 2.))
         
-    def square_uni_density_sk(self, u, lambda_obs, N_s):
+    def square_uni_density_sk(self, u, lambda_obs):
         """
             Returns a square close package number density of baselines in the uv plane. We use the usual approx
         """
         D_max = 65000 # in meters
         u_max = D_max / lambda_obs
-        return N_s**2 / (2. * np.pi * pow(u_max, 2.))
+        return self.N_s**2 / (2. * np.pi * pow(u_max, 2.))
         
     def number_density(self, u, lambda_obs):
         """
@@ -98,12 +91,21 @@ class skalow(object):
         nu_obs = c_mMHz / lambda_obs
         u_array = self.U_over_nu * nu_obs
         n_u_array = self.n_U_x_nu_nu / nu_obs / nu_obs
-        print('U: ',u_array)
-        print('n: ', n_u_array)
+#        print('U: ',u_array)
+#        print('n: ', n_u_array)
 #        norm = simps(2. * np.pi * u_array * n_u_array, u_array)
         norm = trapz(2. * np.pi * u_array * n_u_array, u_array)
-        proper = 0.5 * 911 * (910)
-        return norm, proper
+#        N_Dish_FVN = 911 * 256
+#        N_Dish_SKA = 512 * 256
+#        n_sq_FVN = self.square_uni_density_sk(u_array, lambda_obs, N_Dish_FVN)
+        n_sq_SKA = self.square_uni_density_sk(u_array, lambda_obs)
+#        norm_sq_FVN = trapz(2. * np.pi * u_array * n_sq_FVN, u_array)
+        norm_sq_SKA = trapz(2. * np.pi * u_array * n_sq_SKA, u_array)
+#        proper_FVN = 0.5 * N_Dish_FVN * (N_Dish_FVN - 1)
+        proper_SKA = 0.5 * self.N_s * (self.N_s - 1)
+#        return norm, norm_sq_FVN, proper_FVN, norm_sq_SKA, proper_SKA
+#        return proper_FVN / norm, proper_SKA / norm
+        return proper_SKA / norm
         
     
     def plot_density_baselines(self, z):
@@ -117,13 +119,11 @@ class skalow(object):
         sq_uni = [] # This is N_s^2
         sq_uni_d = [] # N_s^4
         for i in self.U_over_nu:
-            sq_uni.append(self.square_uni_density(i, lambda_obs, 911*911) * nu_obs**2)
-            sq_uni_d.append(self.square_uni_density_sk(i, lambda_obs, 512*512) * nu_obs**2)
+            sq_uni_d.append(self.square_uni_density_sk(i, lambda_obs) * nu_obs**2)
         
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(111)
         ax1.plot(self.U_over_nu, self.n_U_x_nu_nu, label='FVN 2014')
-        ax1.plot(self.U_over_nu, sq_uni, label=r'Sq. Uni. $N_s^4$ FNV')
         ax1.plot(self.U_over_nu, sq_uni_d, label=r'Sq. Uni. $N_s^4$ SKA')
         ax1.set_xlabel(r'$U/\nu$    [MHz$^{-1}$]', fontsize=14)
         ax1.set_ylabel(r'$n(U) \times \nu^2$    [MHz$^2$]', fontsize=14)
@@ -139,14 +139,15 @@ class skalow(object):
         
         u_array = self.U_over_nu * nu_obs
         n_u_array = self.n_U_x_nu_nu / nu_obs**2
-        
+        # deal with normalization
+        norm_fact = self.normalize(lambda_obs)[0]
         sq_array = []
         sq_array_d = []
         nu_den = []
         for u in u_array:
-            sq_array.append(self.square_uni_density(u, lambda_obs, 911*911))
-            sq_array_d.append(self.square_uni_density_sk(u, lambda_obs, 512*512))
-            nu_den.append(self.number_density(u, lambda_obs))
+#            sq_array.append(self.square_uni_density(u, lambda_obs, 911*256))
+            sq_array_d.append(self.square_uni_density_sk(u, lambda_obs))
+            nu_den.append(self.number_density(u, lambda_obs) * norm_fact)
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(111)
         ax1.plot(u_array, n_u_array)
@@ -177,9 +178,6 @@ class skalow(object):
         elif (nu_MHz <= nu_crit_MHz):
             return A_e_crit
 
-  
-  
-  
     def noise_power_Mpc(self, z, k_Mpc, mu):
         """
             Returns the noise power spectrum in mK^2 Mpc^3.
@@ -200,7 +198,13 @@ class skalow(object):
         # first get the right k perp
         kt_Mpc = k_Mpc * np.sqrt(1. - mu**2)
         u = kt_Mpc * D_c_Mpc / (2. * np.pi)
-        den_factor = 2. * self.t_int * self.number_density(u, lambda_obs) # [s]
+        # grab density
+        n = self.number_density(u, lambda_obs)
+        # and normalize it
+        norm_factor = self.normalize(lambda_obs)
+        # then density becomes
+        n *= norm_factor
+        den_factor = 2. * self.t_int * n # [s]
         # construct noise, note that I transform a lambda obs to km due to hubble's units
         P_N = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc * ang_factor**2 / den_factor * f_factor
         if self.verbose == 1:
@@ -208,13 +212,14 @@ class skalow(object):
             print('Nu obs in MHz ', nu_obs)
             print('Comoving distance in Mpc ', D_c_Mpc)
             print('Hubble in km/s/Mpc ', H_kms_Mpc)
-            print('FOV is ', self.FOV(lambda_obs))
+            print('FOV is, in sq. deg, ', self.FOV(lambda_obs) * pow(180. / np.pi, 2))
             print('kt in 1/Mpc is ', kt_Mpc)
             print('The u ', u)
             print('Integration time ', self.t_int)
-            print('Number density for that kt ', self.number_density(u, lambda_obs))
+            print('Number density for that kt ', n)
             print('T system in mili Kelvins ', self.T_sys(nu_obs))
-            prefrator = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
+#            prefrator = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
+            prefrator = D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc
             print('Prefactor ', prefrator)
             print('1 / den_factor ', 1. / den_factor)
             print('S_area / FOV ', f_factor)
@@ -244,8 +249,28 @@ class skalow(object):
         # first get the right k perp
         kt_Mpc = k_Mpc * np.sqrt(1. - mu**2)
         u = kt_Mpc * D_c_Mpc / (2. * np.pi)
-        den_factor = 2. * self.t_int * self.square_uni_density(u, lambda_obs, 911 * 911) # [s]
+        den_factor = 2. * self.t_int * self.square_uni_density_sk(u, lambda_obs) # [s]
         # construct noise, note that I transform a lambda obs to km due to hubble's units
         P_N = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc * ang_factor**2 / den_factor * f_factor
         return P_N
 
+    def survey_vol_Mpc(self, z):
+        """
+            Volume of the survey, for auto it is the 21cm, for cross it would be both surveys have the same volume.
+            
+            Units of Mpc^3
+        """
+        # frequency
+        nu_MHz = 1420.
+        # comoving distance
+        Dc_Mpc = self.lya_c.comoving_dist(z)
+        # comoving distance associated with bandwith of the instrument
+        Delta_D_Mpc = self.c_kms / (self.lya_c.h * 100.) / np.sqrt(self.lya_c.Omega_m) / nu_MHz * np.sqrt(1. + z) * self.band_MHz
+        # note bandwidth needs to be in MHz just like the 21cm frequency
+        nu_obs = nu_MHz / (1. + z)
+        lambda_obs = 0.21 * (1. + z)
+        """ Sorry Heyang I will clean up all the lambda_emit and nu_emit later haha"""
+        # for area of a single dish we use the eff area
+        # ratio to account for the angular resolution of the telescope in Fourier space
+        ratio = lambda_obs * lambda_obs / self.eff_area_SKA_LOW(nu_obs)
+        return Dc_Mpc**2 * Delta_D_Mpc * ratio
