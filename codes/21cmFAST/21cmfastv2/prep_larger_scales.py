@@ -46,21 +46,28 @@ def cross_power(k_Mpc, z):
     elif k_Mpc > k_max:
         return 0
     elif k_Mpc < k_min:
-        bias_scaling = P_cross(z, k_min) / P_m_Mpc(k_min / h, z)
+        bias_scaling = P_cross(z, k_min) / (P_m_Mpc(k_min / h, z) * pow(k_min, 3) / (2. * np.pi**2))
 #        print('bias ', bias_scaling)
 #        print('matter ', P_m_Mpc(k_Mpc / h, z))
 #        print('cross ', bias_scaling * P_m_Mpc(k_Mpc / h, z))
-        return bias_scaling * P_m_Mpc(k_Mpc / h, z)
+        return bias_scaling * P_m_Mpc(k_Mpc / h, z) * pow(k_Mpc, 3) / (2. * np.pi**2)
 
 k_plot = np.logspace(-4,1,1000)
 z_test = 7.69
 cross_plot = np.zeros(len(k_plot))
 data_plot = np.zeros(len(k_Mpc_fast))
+pcross_plot = np.zeros(len(k_plot))
+pdata_plot = np.zeros(len(k_Mpc_fast))
+pm_plot = np.zeros(len(k_plot))
 for i in range(0,len(k_plot)):
     cross_plot[i] = cross_power(k_plot[i], z_test)
+    pcross_plot[i] = cross_power(k_plot[i], z_test) * 2. * np.pi**2 / pow(k_plot[i], 3)
+    # testing matter
+    pm_plot[i] = P_m_Mpc(k_plot[i] / h, z_test)
 
 for i in range(0,len(k_Mpc_fast)):
     data_plot[i] = P_cross(z_test, k_Mpc_fast[i])
+    pdata_plot[i] = P_cross(z_test, k_Mpc_fast[i]) * 2. * np.pi**2 / pow(k_Mpc_fast[i], 3)
 
 fig = plt.figure(figsize=(6,6))
 ax1 = fig.add_subplot(111)
@@ -69,6 +76,37 @@ ax1.plot(k_Mpc_fast, data_plot)
 ax1.set_xlabel(r'k  [Mpc$^{-1}$]', fontsize=14)
 ax1.set_ylabel(r'$\frac{k^3}{2\pi^2} P_{m,x_{HI}}(k,z)$', fontsize=14)
 ax1.set_xscale('log')
+ax1.set_title('Redshift: '+str(z_test), fontsize=14)
 plt.show()
 
-np.savetxt('matter_cross_HI_21cmfastv2_fid.txt', np.transpose([k_plot, cross_plot]), fmt='%e', delimiter=' ')
+fig = plt.figure(figsize=(6,6))
+ax1 = fig.add_subplot(111)
+ax1.plot(k_plot, pcross_plot)
+ax1.plot(k_Mpc_fast, pdata_plot)
+ax1.set_xlabel(r'k  [Mpc$^{-1}$]', fontsize=14)
+ax1.set_ylabel(r'$P_{m,x_{HI}}(k,z)$', fontsize=14)
+ax1.set_xscale('log')
+ax1.set_title('Redshift: '+str(z_test), fontsize=14)
+plt.show()
+
+fig = plt.figure(figsize=(6,6))
+ax1 = fig.add_subplot(111)
+ax1.plot(k_plot, pm_plot)
+ax1.set_xlabel(r'k  [Mpc$^{-1}$]', fontsize=14)
+ax1.set_ylabel(r'$P_{m}(k,z)$', fontsize=14)
+ax1.set_xscale('log')
+ax1.set_yscale('log')
+ax1.set_title('Redshift: '+str(z_test), fontsize=14)
+plt.show()
+
+cross_final = np.zeros((len(z_re)*len(k_plot),3))
+#z_re_final = np.zeros(len(z_re)*len(k_plot))
+#k_final = np.zeros(len(z_re)*len(k_plot))
+for i in range(0,len(z_re)):
+    for j in range(0,len(k_plot)):
+        cross_final[i*len(k_plot) + j,0] = z_re[i]
+        cross_final[i*len(k_plot) + j,1] = k_plot[j]
+        cross_final[i*len(k_plot) + j,2] = cross_power(k_plot[j],z_re[i])
+    
+
+np.savetxt('matter_cross_HI_21cmfastv2_fid.txt', cross_final, fmt='%e', delimiter=' ')
