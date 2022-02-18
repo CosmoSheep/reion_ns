@@ -15,7 +15,7 @@ from scipy.integrate import trapz
 
 class puma(object):
     
-    def __init__(self, t_int, b):
+    def __init__(self, t_int, b, Omega_m, h, Omega_r):
         # let's grab the bandwidth
         self.band_MHz = b # in MHz
         # grabbing total integration time in h and transform to s
@@ -53,7 +53,7 @@ class puma(object):
         self.d = 1.6635 # sq 1.5974
         self.e = 7.3177 # sq 6.8390
         # for system noise we need the comoving distance
-        self.lya_c = lya_c.lya_convert()
+        self.lya_c = lya_c.lya_convert(Omega_m, h, Omega_r)
         # for bug-catching
         self.verbose = True
         

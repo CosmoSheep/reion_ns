@@ -16,7 +16,7 @@ from scipy.integrate import trapz
 
 class skalow(object):
     
-    def __init__(self, t_int, b):
+    def __init__(self, t_int, b, Omega_m, h, Omega_r):
         # let's grab the bandwidth
         self.band_MHz = b # in MHz
         # grabbing total integration time in h and transform to s
@@ -34,7 +34,7 @@ class skalow(object):
         # the data that we grabbed manually
         self.U_over_nu, self.n_U_x_nu_nu = np.loadtxt('density_baseline.csv', unpack=True)
         # for system noise we need the comoving distance
-        self.lya_c = lya_c.lya_convert()
+        self.lya_c = lya_c.lya_convert(Omega_m, h, Omega_r)
         # speed of ligth in km/s
         self.c_kms = 2.99979e5
         # for bug catching
