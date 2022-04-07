@@ -2,6 +2,12 @@ import numpy as np
 from scipy.interpolate import interp2d
 from classy import Class
 import matplotlib.pyplot as plt
+import sys
+
+print('Need model first, which should be something like <avg_late>.')
+
+# need to automate sligthly
+model = str(sys.argv[1])
 
 cosmo_params = {
     'output': 'mPk',
@@ -10,12 +16,26 @@ cosmo_params = {
     'h': 0.6774,
     'Omega_b': 0.0486,
     'Omega_cdm': 0.3088,
-    'z_reio': 7.93,
     'non linear': 'halofit',
     'halofit_min_k_max': 10,
     'format': 'CLASS',
     'z_max_pk': 35.0
 }
+
+#cosmo_params = {
+#    'output': 'mPk',
+#    'sigma8': 0.8159,
+#    'n_s': 0.9667,
+#    'h': 0.6774,
+#    'Omega_b': 0.0486,
+#    'Omega_cdm': 0.3088,
+#    'z_reio': 7.93,
+#    'non linear': 'halofit',
+#    'halofit_min_k_max': 10,
+#    'format': 'CLASS',
+#    'z_max_pk': 35.0
+#}
+
 cosmo = Class()
 cosmo.set(cosmo_params)
 cosmo.compute()
@@ -32,12 +52,16 @@ def P_m_Mpc(k_hMpc, z):
     return cosmo.pk_lin(k_hMpc * h, z)
 
 #fast_file = 'cross_cropped_power_fc_fid.txt' cropped is not good
-fast_file = 'cross_power_concat_fc_fid.txt'
+#fast_file = 'cross_power_concat_fc_fid.txt'
+# I need to do this for a few files now that Catalina has finished her realizations
+fast_file = './cross_21cm_'+str(model)+'.txt'
 z_re, k_Mpc_fast, cross = np.loadtxt(fast_file, unpack=True)
 z_re = np.unique(z_re)
 k_Mpc_fast = np.unique(k_Mpc_fast)
 P_cross = interp2d(z_re, k_Mpc_fast, cross)
-k_min = k_Mpc_fast[0]
+# having troubles with large scales, wonder if it is because it transitions to P_m too late.
+k_min = k_Mpc_fast[3] # I believe this is better. 
+#k_Mpc_fast[0] the data I gave to Heyang uses first element.
 k_max = k_Mpc_fast[-1]
 
 def cross_power(k_Mpc, z):
@@ -109,4 +133,6 @@ for i in range(0,len(z_re)):
         cross_final[i*len(k_plot) + j,2] = cross_power(k_plot[j],z_re[i])
     
 
-np.savetxt('matter_cross_HI_21cmfastv2_fid.txt', cross_final, fmt='%e', delimiter=' ')
+#np.savetxt('matter_cross_HI_21cmfastv2_fid.txt', cross_final, fmt='%e', delimiter=' ')
+# for the new one
+np.savetxt('../matter_cross_HI_'+str(model)+'.txt', cross_final, fmt='%e', delimiter=' ')
