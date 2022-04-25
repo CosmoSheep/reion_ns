@@ -130,7 +130,7 @@ class P_21_obs:
 
 class P_patchy_reion:
     
-    def __init__(self, k, mu, z, params):
+    def __init__(self, k, mu, z, params, verbose = True):
     
         self.k = k
         self.mu = mu
@@ -147,7 +147,7 @@ class P_patchy_reion:
         self.bHI = params['bHI']
         self.OHI = params['O_HI'] / 1.e3
         # self.OHI = self.OHI(self.z)
-
+        self.verbose = verbose
 
         self.OMh2 = self.Obh2+self.Och2
         
@@ -354,20 +354,22 @@ class P_patchy_reion:
 
         P_patchy = 2 * self.Tb_mean()**2 * (self.bHI + self.mu**2 * self.f()) * self.P_m_psi()
 
-        print('At k = %f, mu = %f, z=%f, P_patchy = %f '% (self.k, self.mu, self.z, P_patchy))
+        if self.verbose is True:
+            print('At k = %f, mu = %f, z=%f, P_patchy = %f '% (self.k, self.mu, self.z, P_patchy))
 
         return P_patchy
 
 
 class Fisher:
 
-    def __init__(self,z,nk,nmu,dz,kmax = 0.4):
+    def __init__(self,z,nk,nmu,dz,kmax = 0.4, verbose = True):
 
         self.z = z
         self.dz = dz
         self.kmax = kmax
         self.nk = nk
         self.nmu = nmu
+        self.verbose = verbose
         
 
         self.params={}
@@ -388,25 +390,31 @@ class Fisher:
         zbin_width = self.DA(self.z + self.dz) - self.DA(self.z - self.dz)
         self.kmin = 2 * np.pi / zbin_width
 
-
-        
-
         self.F = None
 
         self.Finv = None
 
     def OHI(self,z):
-        if 3.49 < z < 4.45:
+        if 3.49 < z < 4.5:
             return 1.18e-3
-        elif 4.44 < z < 5.51:
+        elif 4.5 <= z < 5.51:
             return 0.98e-3
 
-    def bHI(self,z):
-        bHI = np.array([2.2578, 2.3970, 2.5314, 2.6581, 2.7739])                           
-        zs = np.array([3.5, 4.0, 4.5, 5.0, 5.5])
-        bHIs = interpolate.interp1d(zs,bHI)
+    # def bHI(self,z):
+    #     bHI = np.array([2.2578, 2.3970, 2.5314, 2.6581, 2.7739])                           
+    #     zs = np.array([3.5, 4.0, 4.5, 5.0, 5.5])
+    #     bHIs = interpolate.interp1d(zs,bHI)
 
-        return bHIs(z)
+    #     return bHIs(z)
+
+    def bHI(self,z):
+        # 1804.09180, Table 5
+        if 3.49 < z < 4.5:
+            bHI = 2.82
+        elif 4.5 <= z <5.51:
+            bHI = 3.18
+
+        return bHI
 
     def DA(self,z):
         zs = np.linspace(0,z,1000,endpoint=True)
@@ -438,7 +446,7 @@ class Fisher:
         dparams['alphas'] = 0.00002
         dparams['taure'] = 0.002
 
-        dparams['bHI'] = 0.025
+        dparams['bHI'] = 0.03
         dparams['O_HI'] = 0.01
 
         for i,par in enumerate(dparams.keys()):
@@ -473,7 +481,39 @@ class Fisher:
 
         return nmodes / 2. / P_fid**2
 
-    def Fmat(self,k,mu,z, dk, dmu):
+    def Cov_inv_arr(self):
+        ks0 = np.logspace(np.log10(self.kmin), np.log10(self.kmax), self.nk, endpoint = True)
+        dks = np.diff(ks0)
+        mus = np.linspace(-1, 1., self.nmu+1, endpoint = True)
+        mus = (mus[1:] + mus[:-1]) / 2
+        ks = 10**((np.log10(ks0[1:]) + np.log10(ks0[:-1])) / 2)
+
+        dmu = 2 / self.nmu
+
+        # generate and save 2*Nmode/Pk**2 for the sake of time
+        zs = np.linspace(zmin, zmax, int((zmax - zmin)/dz)+1, endpoint=True)
+        zs = (zs[1:] + zs[:-1])/2
+
+        Cov_inv_arr = []
+        for z in zs:
+            this_arr = []
+            for i in range(self.nk-1):
+                for mu in mus:
+                    k = ks[i]
+                    dk = dks[i]
+                    mu_min = self.kmin / k
+                    if np.abs(mu) < mu_min: continue
+                    if self.verbose is True:
+                        print('mu = %f' % mu)
+                    # k = self.kmin + self.dk / 2 + i * self.dk
+                    # mu = -1. + self.dmu / 2 + j * self.dmu
+                    this_arr.append(self.Cov_inv(k, mu, z, dk, dmu))
+            Cov_inv_arr.append(this_arr)
+
+        self.Cov_inv_arr = np.array(Cov_inv_arr)
+        return self.Cov_inv_arr
+
+    def Fmat(self,k,mu,z, dk, dmu, Cov):
         # zmax = 5.5
         # zmin = 3.5
 
@@ -482,11 +522,10 @@ class Fisher:
         F = np.zeros((len(self.params),len(self.params)))
         dP_dparam = self.dparams(k,mu,z)
 
-        Cov = self.Cov_inv(k,mu,z, dk, dmu)
+        # Cov = self.Cov_inv(k, mu, z, dk, dmu)
 
         for i in range(len(self.params)):
             for j in range(len(self.params)):
-
                 F[i,j] = Cov * dP_dparam[i] * dP_dparam[j]
 
         return F
@@ -496,23 +535,32 @@ class Fisher:
         # nk =floor((self.kmax-self.kmin)/self.dk)
         # nmu = floor(2/self.dmu)
 
-        ks = np.logspace(np.log10(self.kmin), np.log10(self.kmax), self.nk, endpoint = True)
-        mus = np.linspace(-1, 1., self.nmu, endpoint = True)
+        ks0 = np.logspace(np.log10(self.kmin), np.log10(self.kmax), self.nk, endpoint = True)
+        dks = np.diff(ks0)
+        mus = np.linspace(-1, 1., self.nmu+1, endpoint = True)
+        mus = (mus[1:] + mus[:-1]) / 2
+        ks = 10**((np.log10(ks0[1:]) + np.log10(ks0[:-1])) / 2)
 
-        dmu = 2 / (self.nmu-1)
-        dks = np.diff(ks)
+        dmu = 2 / self.nmu
+        if self.Cov_inv_arr is None:
+            self.Cov_inv_arr()
 
         self.F = np.zeros((len(self.params),len(self.params)))
 
+        z_index = int((self.z - 3.5)/0.2)
+        Cov = self.Cov_inv_arr()
+        count = 0
         for i in range(self.nk-1):
             for mu in mus:
                 k = ks[i]
                 dk = dks[i]
                 mu_min = self.kmin / k
                 if np.abs(mu) < mu_min: continue
-                # k = self.kmin + self.dk / 2 + i * self.dk
-                # mu = -1. + self.dmu / 2 + j * self.dmu
-                self.F += self.Fmat(k,mu,self.z, dk, dmu) 
+                if self.verbose is True:
+                    print('mu = %f' % mu)                
+                self.F += self.Fmat(k,mu,self.z, dk, dmu, Cov[z_index][count]) 
+                count += 1
+
 
         return self.F
 
@@ -596,22 +644,57 @@ class Fisher:
         
         return self.Finv
 
-    def param_shift(self,k,mu, dk, dmu, param):
-        P_reion = P_patchy_reion(k,mu,self.z,self.params).P_reion()
+    def this_param_shift(self,z, k,mu, dk, dmu, param, Cov):
+        params = self.params.copy()
+        params['bHI'] = float(self.bHI(z))
+        params['O_HI'] = self.OHI(z) * 1.e3
+
+        P_reion = P_patchy_reion(k,mu,z,params).P_reion()
         d_param = 0
 
-        self.dP_dparam = self.dparams(k,mu,self.z)
+        self.dP_dparam = self.dparams(k,mu,z)
 
         if self.Finv is None:
-            self.get_Finv()
+            raise Exception("Need an Finv to continue")
+            # self.get_Finv()
 
-        param_index = list(self.params.keys()).index(param)
+        param_index = list(params.keys()).index(param)
 
-        for j in range(len(self.params)):
 
-            d_param += self.Finv[param_index,j] * self.Cov_inv(k,mu,self.z, dk, dmu) * P_reion * self.dP_dparam[j]
+        for j in range(8):
+
+            d_param += self.Finv[param_index,j] * Cov * P_reion * self.dP_dparam[j]
 
         return d_param
+
+    def param_shift(self, zmin, zmax, dz, nk, nmu, param):
+        shift = 0
+
+        zs = np.linspace(zmin, zmax, int((zmax - zmin)/dz)+1, endpoint=True)
+        zs = (zs[1:] + zs[:-1])/2
+
+        for z in zs:
+            kmin = 2 * np.pi / (self.DA(z + dz/2) - self.DA(z - dz/2))
+            ks = np.logspace(np.log10(kmin), np.log10(self.kmax), nk+1, endpoint = True)
+            dks = np.diff(ks)
+            ks = 10**((np.log10(ks[1:]) + np.log10(ks[:-1])) / 2)
+            mus = np.linspace(-1., 1., nmu+1)
+            mus = (mus[1:] + mus[:-1]) / 2
+            dmu = 2. / nmu
+
+            z_index = int((z - 3.5)/0.2)
+            Cov = self.Cov_inv_arr()
+            count = 0
+            for i in range(nk):
+                k = ks[i]
+                dk = dks[i]
+                mu_min = kmin / k
+                for mu in mus:
+                    if np.abs(mu) < mu_min: continue
+                    shift += self.this_param_shift(z, k, mu, dk, dmu, param, Cov[z_index][count])
+                    count += 1
+
+        return shift
 
 
     def ns_shift(self,k,mu):
