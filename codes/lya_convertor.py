@@ -5,12 +5,12 @@ from scipy.integrate import quad
 class lya_convert(object):
     # this class defines the convertor for our fiducial cosmology, based on Andreu's code
     
-    def __init__(self):
+    def __init__(self, Omega_m, h, Omega_r):
         # need to define cosmology for hubble parameter
-        self.Omega_m = 0.3088
-        self.h = 0.6774
-        self.Omega_r = 8.6e-5 # for consistency with 21cmFAST, but pretty much useless here
-        print('Careful, you are using my code to compute H(z), which has ' self.Omega_m, self.h)
+        self.Omega_m = Omega_m
+        self.h = h
+        self.Omega_r = Omega_r # for consistency with 21cmFAST, but pretty much useless here
+        print('Careful, you are using my code to compute H(z), which has ', self.Omega_m, self.h, self.Omega_r)
 
     
 
