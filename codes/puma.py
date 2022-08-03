@@ -23,7 +23,7 @@ class puma(object):
         # the amplifier noise temperature is
         self.T_ampl = 50 # in Kelvins
         # ground temperature
-        self.T_ground = 50 # in Kelvins
+        self.T_ground = 300 # in Kelvins
         # coupling to vacuum
         self.eta_c = 0.9 # max is 1
         # coupling to sky
