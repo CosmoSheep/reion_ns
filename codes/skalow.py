@@ -272,5 +272,7 @@ class skalow(object):
         """ Sorry Heyang I will clean up all the lambda_emit and nu_emit later haha"""
         # for area of a single dish we use the eff area
         # ratio to account for the angular resolution of the telescope in Fourier space
-        ratio = lambda_obs * lambda_obs / self.eff_area_SKA_LOW(nu_obs)
-        return Dc_Mpc**2 * Delta_D_Mpc * ratio
+        ratio_single = lambda_obs * lambda_obs / self.eff_area_SKA_LOW(nu_obs)
+        # now that would be the expression for a single field interferometer survey, but we have many fields
+        ratio_all = self.S_area / self.FOV(lambda_obs)
+        return Dc_Mpc**2 * Delta_D_Mpc * ratio * ratio_all

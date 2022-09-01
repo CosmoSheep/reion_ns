@@ -55,7 +55,7 @@ class puma(object):
         # for system noise we need the comoving distance
         self.lya_c = lya_c.lya_convert(Omega_m, h, Omega_r)
         # for bug-catching
-        self.verbose = True
+        self.verbose = False #True
         
     def T_sky(self, nu):
         """
@@ -271,5 +271,7 @@ class puma(object):
         """ Sorry Heyang I will clean up all the lambda_emit and nu_emit later haha"""
         # for area of a single dish we use the eff area
         # ratio to account for the angular resolution of the telescope in Fourier space
-        ratio = lambda_obs * lambda_obs / self.A_e
-        return Dc_Mpc**2 * Delta_D_Mpc * ratio
+        ratio_single = lambda_obs * lambda_obs / self.A_e
+        # now that would be the expression for a single field interferometer survey, but we have many fields
+        ratio_all = self.S_area / self.FOV(lambda_obs)
+        return Dc_Mpc**2 * Delta_D_Mpc * ratio_single * ratio_all
