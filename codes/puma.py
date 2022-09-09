@@ -98,6 +98,8 @@ class puma(object):
     def square_uni_density(self, u, lambda_obs, N_s):
         """
            Returns a square close package number density of baselines in the uv plane, N_s = 256 * 256
+        
+           Function just for reference. It is not being used in the main code. 
         """
         D_min = 6 # meters
         D_max = 256 * 6 * np.sqrt(2) # meters
@@ -112,12 +114,15 @@ class puma(object):
             Compute the normalization of our number density of baselines
         """
         u = np.linspace(30, 60000, 1000)
-        n_sq = self.square_uni_density(u, lambda_obs, 256**2)
+        n_sq = self.square_uni_density(u, lambda_obs, 256*256)
         n = self.number_density(u, lambda_obs)
         norm = trapz(2. * np.pi * u * n, u)
+        u_max = 256 * 6 * np.sqrt(2) / lambda_obs
+        norm_sq = np.pi * u_max**2 * n_sq
         N_s = 256 * 256
         proper = 0.5 * N_s * (N_s - 1)
-        return proper / norm
+        return proper / norm, proper / norm_sq
+    
     
     def plot_density_baselines(self, z):
         """
@@ -133,9 +138,9 @@ class puma(object):
             
         fig = plt.figure(figsize=(6,6))
         ax1 = fig.add_subplot(111)
-        ax1.plot(u_array, self.number_density(u_array, lambda_obs))
+        ax1.plot(u_array, self.number_density(u_array, lambda_obs), label=r'closed-hex-pack')
 #        ax1.plot(u_array, sq_array, label=r'sq. uni $N_s^2$', color='purple')
-        ax1.plot(u_array, sq_array_d, label=r'sq. uni $N_s^4$', color='green')
+        ax1.plot(u_array, sq_array_d, label=r'sq. uni ~ 65k dishes', color='green')
         ax1.set_xlabel(r'$u$', fontsize=14)
         ax1.set_ylabel(r'$n(u)$', fontsize=14)
         ax1.legend(loc='best')
@@ -197,7 +202,9 @@ class puma(object):
         """
             Returns the noise power spectrum in mK^2 Mpc^3.
             
-            The inputs are redshift, wavenumber in 1/Mpc and the angle between the line of sigth mu
+            The inputs are redshift, wavenumber in 1/Mpc and the angle between the line of sigth mu.
+            
+            Function is just for reference and it is not being used anywhere.
         """
         lambda_obs = 0.21 * (1. + z) # note that this is in meters
         nu_obs = 1420 / (1. + z) # in MHz, I got lazy so defined both hehe
@@ -240,7 +247,7 @@ class puma(object):
         ax1 = fig.add_subplot(111)
         ax1.plot(l_array, self.n_b_phys(l_array) * 2. * np.pi * l_array)
 #        ax1.plot(l_array, n_sq_phys, label=r'Sq. uni. approx.  $N_s^2$')
-        ax1.plot(l_array, n_sq_phys_d, label=r'Sq. uni. approx.  $N_s^4$')
+        ax1.plot(l_array, n_sq_phys_d, label=r'Sq. uni. approx.  ~65k dishes')
 #        ax1.plot(l_array, sq_phys_sk, label=r'Sq. uni. approx. SKA $N_s^2$')
 #        ax1.plot(l_array, sq_phys_sk_d, label=r'Sq. uni. approx. SKA $N_s^4$')
         ax1.set_xlabel(r'baseline length $\ell$ [m]', fontsize=14)
