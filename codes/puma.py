@@ -112,6 +112,10 @@ class puma(object):
     def normalize(self, lambda_obs):
         """
             Compute the normalization of our number density of baselines
+            
+            Note that this functionn is now being called in the power spectrum computation.
+            
+            Also, note that it no longer uses the defined N_s attribute and instead is defined inside the function
         """
         u = np.linspace(30, 60000, 1000)
         n_sq = self.square_uni_density(u, lambda_obs, 256*256)
@@ -119,7 +123,8 @@ class puma(object):
         norm = trapz(2. * np.pi * u * n, u)
         u_max = 256 * 6 * np.sqrt(2) / lambda_obs
         norm_sq = np.pi * u_max**2 * n_sq
-        N_s = 256 * 256
+#        N_s = 256 * 256
+        N_s = 32000.
         proper = 0.5 * N_s * (N_s - 1)
         return proper / norm, proper / norm_sq
     
@@ -172,7 +177,11 @@ class puma(object):
         # first get the right k perp
         kt_Mpc = k_Mpc * np.sqrt(1. - mu**2)
         u = kt_Mpc * D_c_Mpc / (2. * np.pi)
-        den_factor = 2. * self.t_int * self.number_density(u, lambda_obs) # [s]
+        # the number density is
+        n_u = self.number_density(u, lambda_obs)
+        # and we normalize it to have 32000 array elements
+        n_u *= self.normalize(lambda_obs)[0]
+        den_factor = 2. * self.t_int * n_u # [s]
         # construct noise, note that I transform a lambda obs to km due to hubble's units
         # and I transform K into mK too
         P_N = (self.T_sys(nu_obs))**2 * D_c_Mpc**2 * (lambda_obs / 1000.) * (1. + z) / H_kms_Mpc * ang_factor**2 / den_factor * f_factor
