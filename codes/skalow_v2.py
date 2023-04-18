@@ -29,8 +29,8 @@ class skalow(object):
         # Red book)
         self.S_area = 100 * (np.pi / 180.)**2 # sq. radians
         # number of receivers = 224 stations * 256 dipole antennas in each
-        self.N_s = 224 * 4 # stations in the core
-        self.Total_N_s = 512 * 4 # total stations
+        self.N_s = 224 * 2 # stations in the core
+        self.Total_N_s = 512 * 2 # total stations
         self.N_a = 256 # this is the number of antennas per station, not being used for anything
         # the data that we grabbed manually
         self.U_over_nu, self.n_U_x_nu_nu = np.loadtxt('density_baseline.csv', unpack=True)
